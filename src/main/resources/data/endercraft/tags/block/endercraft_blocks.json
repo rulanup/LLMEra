@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "endercraft:intelligent_transmitter",
+    "endercraft:tool_link_station",
+    "endercraft:skill_board"
+  ]
+}

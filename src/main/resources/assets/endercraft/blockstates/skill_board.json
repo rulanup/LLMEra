@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "endercraft:block/skill_board" }
+  }
+}
