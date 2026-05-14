@@ -1,4 +1,5 @@
-item/generated",
+{
+  "parent": "minecraft:item/generated",
   "textures": {
     "layer0": "endercraft:item/tool_link"
   }

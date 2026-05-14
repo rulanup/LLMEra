@@ -32,12 +32,28 @@ public final class NetworkBinding {
     }
 
     public static void bindStackToNetwork(ItemStack stack, BlockPos networkPos) {
-        CustomData.update(DataComponents.BLOCK_ENTITY_DATA, stack, tag -> writeNetworkPos(tag, networkPos));
+        stack.remove(DataComponents.BLOCK_ENTITY_DATA);
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> writeNetworkPos(tag, networkPos));
     }
 
     @Nullable
     public static BlockPos readNetworkPos(ItemStack stack) {
-        CustomData data = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return data == null ? null : readNetworkPos(data.copyTag());
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        BlockPos networkPos = data == null ? null : readNetworkPos(data.copyTag());
+        if (networkPos != null) {
+            return networkPos;
+        }
+
+        CustomData legacyData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (legacyData == null || !legacyData.contains(HAS_NETWORK)) {
+            return null;
+        }
+
+        networkPos = readNetworkPos(legacyData.copyTag());
+        stack.remove(DataComponents.BLOCK_ENTITY_DATA);
+        if (networkPos != null) {
+            bindStackToNetwork(stack, networkPos);
+        }
+        return networkPos;
     }
 }
