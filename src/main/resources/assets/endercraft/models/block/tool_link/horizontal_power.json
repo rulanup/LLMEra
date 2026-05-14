@@ -1,6 +1,6 @@
 {	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "endercraft:block/link_base_unpowered",
+		"0": "endercraft:block/link_base_powered",
 		"1": "endercraft:block/link_details"
 	},
 	"elements": [
