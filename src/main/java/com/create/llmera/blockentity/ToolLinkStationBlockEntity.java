@@ -119,7 +119,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
 
         pulseTicksRemaining = 0;
         setRedstoneSignal(clamp(strength, 0, 15));
-        lastResult = "AI已设置红石信号：" + redstoneSignal;
+        lastResult = "AI已设置工具链接站红石输出：" + redstoneSignal;
         sync();
         return lastResult;
     }

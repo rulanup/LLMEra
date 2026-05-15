@@ -357,8 +357,9 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
             for (String tool : tools) {
                 builder.append("- ").append(tool).append('\n');
             }
-            builder.append("可编程齿轮箱接口：如需修改齿轮箱配置，请在回答中包含 [[LLMERA_PROGRAM tool=\"工具名或目标方块ID\" mode=\"angle|distance|delay|await\" value=90 modifier=\"->|>>|<-|<<\"]]；同一次回答内多个 LLMERA_PROGRAM 会按顺序写入第0、1、2...步。\n");
-            builder.append("红石输出接口：如需指定工具链接站输出红石信号，请回答 工具名称：工具名或目标方块ID，红石信号输出：0-15，或包含 [[LLMERA_REDSTONE tool=\"工具名或目标方块ID\" signal=15]]。\n");
+            builder.append("调用规则：tool 参数优先使用每条工具里的“调用名”，也可以使用目标方块ID；不要凭空编造工具名。\n");
+            builder.append("可编程齿轮箱接口：只用于下方目标是 Create 序列齿轮箱的工具链接站。格式 [[LLMERA_PROGRAM tool=\"调用名或目标方块ID\" mode=\"angle|distance|delay|await\" value=90 modifier=\"->|>>|<-|<<\"]]；同一次回答内多个 LLMERA_PROGRAM 会按顺序写入第0、1、2...步。\n");
+            builder.append("红石输出接口：红石信号由“工具链接站方块自身”输出，不是由下方目标方块输出，也不会修改齿轮箱配置。格式 [[LLMERA_REDSTONE tool=\"调用名或目标方块ID\" signal=15]]；自然语言格式为 工具名称：调用名或目标方块ID，红石信号输出：0-15。\n");
         }
         if (!skills.isEmpty()) {
             builder.append("可参考的 skills：\n");
@@ -425,7 +426,7 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         }
         ToolLinkStationBlockEntity station = findTool(tool);
         if (station == null) {
-            return "红石接口失败：未找到工具 " + tool;
+            return "红石接口失败：未找到工具 " + tool + availableToolHint();
         }
         int signal = parseInt(signalValue, -1);
         if (signal < 0 || signal > 15) {
@@ -452,13 +453,59 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
     }
 
     private static boolean matchesTool(ToolLinkStationBlockEntity station, String expected) {
-        return expected.equals(normalizeToolLookup(station.getDisplayNameForNetwork()))
-                || expected.equals(normalizeToolLookup(station.getToolName()))
-                || expected.equals(normalizeToolLookup(station.getTargetDescription()));
+        String displayName = normalizeToolLookup(station.getDisplayNameForNetwork());
+        String toolName = normalizeToolLookup(station.getToolName());
+        String target = normalizeToolLookup(station.getTargetDescription());
+        return matchesToolName(expected, displayName)
+                || matchesToolName(expected, toolName)
+                || matchesToolName(expected, target)
+                || toolLookupCandidates(expected).stream().anyMatch(candidate -> matchesToolName(candidate, target));
     }
 
     private static String normalizeToolLookup(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
+        return value == null ? "" : value.trim().toLowerCase().replace('（', '(').replace('）', ')');
+    }
+
+    private static boolean matchesToolName(String expected, String actual) {
+        if (expected.isBlank() || actual.isBlank()) {
+            return false;
+        }
+        return expected.equals(actual) || expected.contains(actual) || actual.contains(expected);
+    }
+
+    private static List<String> toolLookupCandidates(String expected) {
+        List<String> candidates = new ArrayList<>();
+        candidates.add(expected);
+        int start = expected.indexOf('(');
+        int end = expected.indexOf(')', start + 1);
+        if (start >= 0 && end > start + 1) {
+            candidates.add(expected.substring(start + 1, end).trim());
+        }
+        for (String part : expected.split("[\\r\\n,，\\s]+")) {
+            if (!part.isBlank()) {
+                candidates.add(part.trim());
+            }
+        }
+        return candidates;
+    }
+
+    private String availableToolHint() {
+        if (level == null) {
+            return "";
+        }
+        List<String> names = new ArrayList<>();
+        BlockPos min = worldPosition.offset(-NETWORK_SCAN_XZ, -NETWORK_SCAN_Y, -NETWORK_SCAN_XZ);
+        BlockPos max = worldPosition.offset(NETWORK_SCAN_XZ, NETWORK_SCAN_Y, NETWORK_SCAN_XZ);
+        BlockPos.betweenClosedStream(min, max).forEach(pos -> {
+            if (names.size() >= 8) {
+                return;
+            }
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof ToolLinkStationBlockEntity station && worldPosition.equals(station.getNetworkPos())) {
+                names.add(station.getDisplayNameForNetwork() + "(" + station.getTargetDescription() + ")");
+            }
+        });
+        return names.isEmpty() ? "" : "；可用工具：" + String.join("，", names);
     }
 
     private static String commandArg(String args, String key) {
@@ -501,9 +548,13 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
     }
 
     private String describeTool(ToolLinkStationBlockEntity station) {
-        StringBuilder builder = new StringBuilder("工具名称=").append(station.getDisplayNameForNetwork())
+        String targetKind = station.getTargetKind();
+        StringBuilder builder = new StringBuilder("调用名=").append(station.getDisplayNameForNetwork())
+                .append("，工具名称=").append(station.getDisplayNameForNetwork())
                 .append("，类型=").append(station.getToolType())
-                .append("，目标方块ID=").append(station.getTargetDescription());
+                .append("，目标类型=").append(targetKind)
+                .append("，目标方块ID=").append(station.getTargetDescription())
+                .append("，工具作用=").append(toolUsage(station));
         if (!station.getToolDescription().isBlank()) {
             builder.append("，说明=").append(station.getToolDescription().trim());
         }
@@ -514,6 +565,20 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
             builder.append("，上次结果=").append(trim(station.getLastResult(), 160));
         }
         return builder.toString();
+    }
+
+    private static String toolUsage(ToolLinkStationBlockEntity station) {
+        if ("container".equals(station.getTargetKind())) {
+            return "读取下方容器NBT/物品内容；如需让红石动作发生，仍应调用红石输出接口让工具链接站自身输出0-15信号";
+        }
+        if ("programmable".equals(station.getTargetKind())) {
+            return "通过可编程齿轮箱接口写入下方Create序列齿轮箱步骤；也可调用红石输出接口让工具链接站自身输出红石信号";
+        }
+        return switch (station.getToolType()) {
+            case "pulse" -> "让工具链接站自身输出短红石脉冲";
+            case "switch" -> "让工具链接站自身保持或关闭红石信号";
+            default -> "工具链接站自身可输出红石信号，影响相邻红石设备";
+        };
     }
 
     private String describeSkill(SkillBoardBlockEntity board) {
