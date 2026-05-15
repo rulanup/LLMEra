@@ -344,11 +344,12 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
             return "请先填写模型名称";
         }
 
+        String networkContext = buildNetworkContext();
         String body = "{"
                 + "\"model\":\"" + escapeJson(modelName) + "\","
                 + "\"messages\":["
-                + "{\"role\":\"system\",\"content\":\"" + escapeJson(buildSystemPrompt()) + "\"},"
-                + "{\"role\":\"user\",\"content\":\"" + escapeJson(prompt) + "\"}"
+                + "{\"role\":\"system\",\"content\":\"" + escapeJson(buildSystemPrompt(networkContext)) + "\"},"
+                + "{\"role\":\"user\",\"content\":\"" + escapeJson(buildUserPrompt(prompt, networkContext)) + "\"}"
                 + "],"
                 + "\"stream\":false"
                 + "}";
@@ -379,17 +380,26 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         }
     }
 
-    private String buildSystemPrompt() {
-        StringBuilder builder = new StringBuilder();
+    private String buildSystemPrompt(String networkContext) {
+        StringBuilder builder = new StringBuilder("你是一个接入 Create 机械动力自动化的 AI 助手。");
         if (!systemPrompt.isBlank()) {
-            builder.append(systemPrompt.trim()).append("\n\n");
+            builder.append("\n\n").append(systemPrompt.trim());
         }
-
-        String networkContext = buildNetworkContext();
         if (!networkContext.isBlank()) {
-            builder.append(networkContext);
+            builder.append("\n\n").append(networkContext);
         }
         return builder.toString();
+    }
+
+    private static String buildUserPrompt(String prompt, String networkContext) {
+        if (networkContext.isBlank()) {
+            return prompt;
+        }
+
+        return "以下是本次调用时服务器扫描到的智能网络工具配置。回答和工具调用必须以这些配置为准。\n\n"
+                + networkContext
+                + "\n【玩家请求】\n"
+                + prompt;
     }
 
     private String buildNetworkContext() {
@@ -418,21 +428,23 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
             return "";
         }
 
-        StringBuilder builder = new StringBuilder("智能网络上下文：\n");
+        StringBuilder builder = new StringBuilder("【当前智能网络上下文】\n");
         if (!tools.isEmpty()) {
-            builder.append("可查看的工具：\n");
+            builder.append("【可用工具链接站】\n");
             for (String tool : tools) {
                 builder.append("- ").append(tool).append('\n');
             }
-            builder.append("调用规则：tool 参数优先使用每条工具里的“调用名”，也可以使用目标方块ID；不要凭空编造工具名。\n");
-            builder.append("可编程齿轮箱接口：只用于下方目标是 Create 序列齿轮箱的工具链接站。格式 [[LLMERA_PROGRAM tool=\"调用名或目标方块ID\" mode=\"angle|distance|delay|await\" value=90 modifier=\"->|>>|<-|<<\"]]；同一次回答内多个 LLMERA_PROGRAM 会按顺序写入第0、1、2...步。\n");
-            builder.append("红石输出接口：红石信号由“工具链接站方块自身”输出，不是由下方目标方块输出，也不会修改齿轮箱配置。格式 [[LLMERA_REDSTONE tool=\"调用名或目标方块ID\" signal=15]]；自然语言格式为 工具名称：调用名或目标方块ID，红石信号输出：0-15。\n");
+            builder.append("\n【调用方法】\n");
+            builder.append("红石输出: [[LLMERA_REDSTONE tool=调用名 signal=0-15]] 或 工具名称：XXX，红石信号输出：15\n");
+            builder.append("可编程齿轮箱: [[LLMERA_PROGRAM tool=调用名 mode=angle|distance|delay|await value=90 modifier=->|>>|<-|<<]]\n");
+            builder.append("重要:这些是本次调用可用的全部工具链接站配置。红石信号由工具链接站自身输出。使用工具时必须使用每条工具的 调用名= 字段。\n\n");
         }
         if (!skills.isEmpty()) {
-            builder.append("可参考的 skills：\n");
+            builder.append("【技能参考】\n");
             for (String skill : skills) {
                 builder.append("- ").append(skill).append('\n');
             }
+            builder.append('\n');
         }
         return builder.toString();
     }
@@ -617,16 +629,15 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
     private String describeTool(ToolLinkStationBlockEntity station) {
         String targetKind = station.getTargetKind();
         StringBuilder builder = new StringBuilder("调用名=").append(station.getDisplayNameForNetwork())
-                .append("，工具名称=").append(station.getDisplayNameForNetwork())
-                .append("，类型=").append(station.getToolType())
+                .append("，工具类型=").append(station.getToolType())
                 .append("，目标类型=").append(targetKind)
-                .append("，目标方块ID=").append(station.getTargetDescription())
-                .append("，工具作用=").append(toolUsage(station));
+                .append("，目标方块=").append(station.getTargetDescription())
+                .append("，用途=").append(toolUsage(station));
         if (!station.getToolDescription().isBlank()) {
             builder.append("，说明=").append(station.getToolDescription().trim());
         }
-        if ("container".equals(station.getTargetKind())) {
-            builder.append("，容器NBT=").append(station.exportTargetInventory());
+        if ("container".equals(targetKind)) {
+            builder.append("，当前容器内容=").append(trim(station.exportTargetInventory(), 320));
         }
         if (!station.getLastResult().isBlank()) {
             builder.append("，上次结果=").append(trim(station.getLastResult(), 160));
@@ -644,6 +655,7 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         return switch (station.getToolType()) {
             case "pulse" -> "让工具链接站自身输出短红石脉冲";
             case "switch" -> "让工具链接站自身保持或关闭红石信号";
+            case "timed_pulse" -> "让工具链接站自身输出按秒配置的红石脉冲，到时自动关闭";
             default -> "工具链接站自身可输出红石信号，影响相邻红石设备";
         };
     }
