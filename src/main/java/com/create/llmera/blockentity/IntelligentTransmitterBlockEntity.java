@@ -10,6 +10,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -220,6 +222,67 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         return lastConversationResponse;
     }
 
+    public void sendConversationAsync(String prompt, ServerPlayer player) {
+        lastConversationInput = prompt == null ? "" : prompt.trim();
+        conversationDraft = "";
+        if (!isOnline()) {
+            lastConversationResponse = "发报机离线：需要相邻且正在燃烧的烈焰人燃烧室";
+            sync();
+            player.sendSystemMessage(Component.literal(lastConversationResponse));
+            return;
+        }
+        if (lastConversationInput.isBlank()) {
+            lastConversationResponse = "请输入消息";
+            sync();
+            player.sendSystemMessage(Component.literal(lastConversationResponse));
+            return;
+        }
+
+        lastConversationResponse = "AI正在思考...";
+        sync();
+        player.sendSystemMessage(Component.literal(lastConversationResponse));
+
+        String promptCopy = lastConversationInput;
+        BlockPos copyPos = worldPosition.immutable();
+        ServerLevel copyLevel = (ServerLevel) level;
+        Thread.startVirtualThread(() -> {
+            String result = requestChatCompletion(promptCopy);
+            copyLevel.getServer().execute(() -> {
+                if (copyLevel.getBlockEntity(copyPos) instanceof IntelligentTransmitterBlockEntity be) {
+                    be.lastConversationResponse = result;
+                    be.sync();
+                    player.sendSystemMessage(Component.literal(result));
+                }
+            });
+        });
+    }
+
+    public void fetchModelListAsync(ServerPlayer player) {
+        if (modelUrl.isBlank()) {
+            lastModelList = "请先填写模型地址";
+            sync();
+            player.sendSystemMessage(Component.literal(lastModelList));
+            return;
+        }
+
+        lastModelList = "正在获取模型列表...";
+        sync();
+        player.sendSystemMessage(Component.literal(lastModelList));
+
+        BlockPos copyPos = worldPosition.immutable();
+        ServerLevel copyLevel = (ServerLevel) level;
+        Thread.startVirtualThread(() -> {
+            String result = requestModelList();
+            copyLevel.getServer().execute(() -> {
+                if (copyLevel.getBlockEntity(copyPos) instanceof IntelligentTransmitterBlockEntity be) {
+                    be.lastModelList = result;
+                    be.sync();
+                    player.sendSystemMessage(Component.literal(result));
+                }
+            });
+        });
+    }
+
     public void clearConversation() {
         lastConversationInput = "";
         lastConversationResponse = "";
@@ -268,6 +331,8 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return "模型列表请求被中断";
+        } catch (Throwable t) {
+            return "模型列表请求异常：" + trim(t.toString(), 120);
         }
     }
 
@@ -309,6 +374,8 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return "模型请求被中断";
+        } catch (Throwable t) {
+            return "模型请求异常：" + trim(t.toString(), 160);
         }
     }
 

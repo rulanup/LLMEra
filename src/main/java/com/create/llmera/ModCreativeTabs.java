@@ -20,6 +20,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.INTELLIGENT_TRANSMITTER_ITEM.get());
                         output.accept(ModItems.TOOL_LINK_STATION_ITEM.get());
                         output.accept(ModItems.SKILL_BOARD_ITEM.get());
+                        output.accept(ModItems.HANDHELD_CONVERSATION_ITEM.get());
                     })
                     .build()
     );

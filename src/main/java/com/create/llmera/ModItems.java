@@ -1,5 +1,6 @@
 package com.create.llmera;
 
+import com.create.llmera.item.HandheldConversationItem;
 import com.create.llmera.item.NetworkBindableBlockItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -18,4 +19,7 @@ public class ModItems {
 
     public static final DeferredHolder<Item, Item> SKILL_BOARD_ITEM = ITEMS.register("skill_board",
             () -> new NetworkBindableBlockItem(ModBlocks.SKILL_BOARD.get(), new Item.Properties().stacksTo(64)));
+
+    public static final DeferredHolder<Item, Item> HANDHELD_CONVERSATION_ITEM = ITEMS.register("handheld_conversation",
+            () -> new HandheldConversationItem(new Item.Properties().stacksTo(1)));
 }

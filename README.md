@@ -29,5 +29,5 @@ The built jar is generated under `build/libs/`.
 ## Version
 
 - Mod name: LLMEra
-- Version: 1.15
+- Version: 1.20
 - License: GNU GPLv3

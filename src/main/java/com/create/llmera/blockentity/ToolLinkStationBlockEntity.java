@@ -32,6 +32,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
     private int redstoneSignal = 0;
     private int pulseTicksRemaining = 0;
     private int defaultPulseTicks = 20;
+    private int timedPulseDurationSeconds = 5;
     private int rotationDirection = 1;
     private int rotationAngle = 90;
     private int rotationSpeed = 64;
@@ -69,6 +70,10 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
 
     public int getDefaultPulseTicks() {
         return defaultPulseTicks;
+    }
+
+    public int getTimedPulseDurationSeconds() {
+        return timedPulseDurationSeconds;
     }
 
     public int getRotationDirection() {
@@ -162,7 +167,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
         return switch (getTargetKind()) {
             case "container" -> new String[] { "get" };
             case "programmable" -> new String[] { "pulse", "program" };
-            default -> new String[] { "switch", "pulse" };
+            default -> new String[] { "switch", "pulse", "timed_pulse" };
         };
     }
 
@@ -191,6 +196,9 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
         if (tag.contains("RotationSpeed")) {
             rotationSpeed = clamp(tag.getInt("RotationSpeed"), 1, 4096);
         }
+        if (tag.contains("TimedPulseDurationSeconds")) {
+            timedPulseDurationSeconds = clamp(tag.getInt("TimedPulseDurationSeconds"), 1, 3600);
+        }
         ensureToolTypeAllowed();
         sync();
     }
@@ -218,6 +226,11 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
                 startPulse(defaultPulseTicks);
                 lastResult = "已请求编程：方向=" + (rotationDirection < 0 ? "反向" : "正向")
                         + "，角度=" + rotationAngle + "，速度=" + rotationSpeed;
+            }
+            case "timed_pulse" -> {
+                int ticks = timedPulseDurationSeconds * 20;
+                startPulse(ticks);
+                lastResult = "已输出红石脉冲，持续 " + timedPulseDurationSeconds + " 秒";
             }
             default -> lastResult = "未知工具类型";
         }
@@ -250,6 +263,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
         rotationDirection = tag.getInt("RotationDirection") < 0 ? -1 : 1;
         rotationAngle = tag.contains("RotationAngle") ? clamp(tag.getInt("RotationAngle"), 1, 3600) : 90;
         rotationSpeed = tag.contains("RotationSpeed") ? clamp(tag.getInt("RotationSpeed"), 1, 4096) : 64;
+        timedPulseDurationSeconds = tag.contains("TimedPulseDurationSeconds") ? clamp(tag.getInt("TimedPulseDurationSeconds"), 1, 3600) : 5;
         lastResult = tag.getString("LastResult");
         networkPos = NetworkBinding.readNetworkPos(tag);
         ensureToolTypeAllowed();
@@ -289,6 +303,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
         tag.putInt("RotationDirection", rotationDirection);
         tag.putInt("RotationAngle", rotationAngle);
         tag.putInt("RotationSpeed", rotationSpeed);
+        tag.putInt("TimedPulseDurationSeconds", timedPulseDurationSeconds);
         tag.putString("LastResult", lastResult);
         if (networkPos != null) {
             NetworkBinding.writeNetworkPos(tag, networkPos);
@@ -449,7 +464,7 @@ public class ToolLinkStationBlockEntity extends BlockEntity {
 
     private static String normalizeToolType(String type) {
         return switch (type) {
-            case "pulse", "get", "program" -> type;
+            case "pulse", "get", "program", "timed_pulse" -> type;
             default -> "switch";
         };
     }

@@ -219,6 +219,9 @@ public class ConfigScreen extends AbstractContainerScreen<ConfigMenu> {
             tag.putInt("RotationAngle", parseInt(thirdField.getValue(), 90));
             tag.putInt("RotationSpeed", parseInt(fourthField.getValue(), 64));
         }
+        if (isTimedPulseMode()) {
+            tag.putInt("TimedPulseDurationSeconds", parseInt(thirdField.getValue(), 5));
+        }
         send(menu.pos, tag);
         statusMessage = tr("screen.llmera.status.tool_saved");
     }
@@ -276,12 +279,13 @@ public class ConfigScreen extends AbstractContainerScreen<ConfigMenu> {
 
     private void updateToolModeWidgets() {
         boolean showProgramFields = isProgramMode();
-        setFieldVisible(thirdField, showProgramFields);
-        setFieldVisible(fourthField, showProgramFields);
+        boolean showTimedPulseFields = isTimedPulseMode();
+        setFieldVisible(thirdField, showProgramFields || showTimedPulseFields);
         if (directionButton != null) {
             directionButton.visible = showProgramFields;
             directionButton.active = showProgramFields;
         }
+        setFieldVisible(fourthField, showProgramFields);
     }
 
     private static void setFieldVisible(EditBox field, boolean visible) {
@@ -293,6 +297,10 @@ public class ConfigScreen extends AbstractContainerScreen<ConfigMenu> {
 
     private boolean isProgramMode() {
         return "programmable".equals(toolTargetKind) && "program".equals(toolType);
+    }
+
+    private boolean isTimedPulseMode() {
+        return "timed_pulse".equals(toolType);
     }
 
     private void toggleEnabled() {
@@ -319,6 +327,7 @@ public class ConfigScreen extends AbstractContainerScreen<ConfigMenu> {
             case "get" -> tr("screen.llmera.tool_type.get");
             case "program" -> tr("screen.llmera.tool_type.program");
             case "skill" -> tr("screen.llmera.tool_type.skill");
+            case "timed_pulse" -> tr("screen.llmera.tool_type.timed_pulse");
             default -> tr("screen.llmera.tool_type.switch");
         };
     }
@@ -478,6 +487,10 @@ public class ConfigScreen extends AbstractContainerScreen<ConfigMenu> {
             guiGraphics.drawString(font, tr("screen.llmera.label.rotation_angle"), x, y + 114, color, false);
             guiGraphics.drawString(font, tr("screen.llmera.label.rotation_direction"), x + 84, y + 114, color, false);
             guiGraphics.drawString(font, tr("screen.llmera.label.rotation_speed"), x, y + 144, color, false);
+        }
+
+        if (isTimedPulseMode()) {
+            guiGraphics.drawString(font, tr("screen.llmera.label.pulse_duration_seconds"), x, y + 114, color, false);
         }
 
         BlockEntity blockEntity = getBlockEntity();

@@ -21,6 +21,7 @@ public final class ClientModEvents {
         registerTooltip(ModItems.INTELLIGENT_TRANSMITTER_ITEM.get(), "block.llmera.intelligent_transmitter");
         registerTooltip(ModItems.TOOL_LINK_STATION_ITEM.get(), "block.llmera.tool_link_station");
         registerTooltip(ModItems.SKILL_BOARD_ITEM.get(), "block.llmera.skill_board");
+        registerTooltip(ModItems.HANDHELD_CONVERSATION_ITEM.get(), "item.llmera.handheld_conversation");
     }
 
     private static void registerTooltip(Item item, String key) {

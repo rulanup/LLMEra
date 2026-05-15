@@ -44,10 +44,10 @@ public final class ModNetworking {
         if (blockEntity instanceof IntelligentTransmitterBlockEntity transmitter) {
             transmitter.applyClientData(data);
             if (data.getBoolean("FetchModels")) {
-                serverPlayer.sendSystemMessage(Component.literal(transmitter.fetchModelList()));
+                transmitter.fetchModelListAsync(serverPlayer);
             }
             if (data.contains("ChatPrompt")) {
-                serverPlayer.sendSystemMessage(Component.literal(transmitter.sendConversation(data.getString("ChatPrompt"))));
+                transmitter.sendConversationAsync(data.getString("ChatPrompt"), serverPlayer);
             }
             if (data.getBoolean("ClearConversation")) {
                 transmitter.clearConversation();

@@ -1,5 +1,6 @@
 package com.create.llmera;
 
+import com.create.llmera.compat.JadeCompat;
 import com.create.llmera.network.ModNetworking;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.bus.api.IEventBus;
@@ -17,5 +18,6 @@ public class LLMEraMod {
         ModMenuTypes.MENU_TYPES.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
         ModNetworking.register(modEventBus);
+        modEventBus.addListener(JadeCompat::init);
     }
 }

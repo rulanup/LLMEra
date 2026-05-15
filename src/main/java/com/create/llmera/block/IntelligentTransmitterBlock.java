@@ -70,7 +70,7 @@ public class IntelligentTransmitterBlock extends Block implements EntityBlock {
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                              Player player, InteractionHand hand, BlockHitResult hitResult) {
-        if (stack.is(ModItems.TOOL_LINK_STATION_ITEM.get()) || stack.is(ModItems.SKILL_BOARD_ITEM.get())) {
+        if (stack.is(ModItems.TOOL_LINK_STATION_ITEM.get()) || stack.is(ModItems.SKILL_BOARD_ITEM.get()) || stack.is(ModItems.HANDHELD_CONVERSATION_ITEM.get())) {
             if (!level.isClientSide) {
                 NetworkBinding.bindStackToNetwork(stack, pos);
                 player.sendSystemMessage(Component.translatable("message.llmera.network.bound", pos.toShortString()));
