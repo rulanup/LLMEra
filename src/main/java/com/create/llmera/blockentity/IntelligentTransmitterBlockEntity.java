@@ -15,11 +15,16 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+import com.create.llmera.util.ApiKeyCrypto;
+import net.neoforged.fml.loading.FMLPaths;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +40,18 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private static final ApiKeyCrypto CRYPTO;
+    private static final String LEGACY_PLAINTEXT_MARKER = "__LEGACY_PLAINTEXT__";
+
+    static {
+        Path keyDir = FMLPaths.CONFIGDIR.get().resolve("llmera").resolve("keys");
+        CRYPTO = new ApiKeyCrypto(keyDir);
+        try {
+            CRYPTO.init();
+        } catch (Exception e) {
+            System.err.println("[LLMEra] Failed to init API key crypto: " + e.getMessage());
+        }
+    }
     private static final Pattern MODEL_ID_PATTERN = Pattern.compile("\\\"id\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
     private static final Pattern MODEL_NAME_PATTERN = Pattern.compile("\\\"name\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
     private static final Pattern MESSAGE_CONTENT_PATTERN = Pattern.compile("\\\"content\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"", Pattern.DOTALL);
@@ -46,6 +63,7 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
 
     private String modelUrl = "";
     private String apiKey = "";
+    private String apiKeyHash = "";
     private String modelName = "";
     private String aiName = "末影助手";
     private String systemPrompt = "";
@@ -141,7 +159,7 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         modelUrl = getString(tag, "ModelUrl", "modelUrl");
-        apiKey = getString(tag, "ApiKey", "apiKey");
+        apiKey = loadApiKey(tag);
         modelName = getString(tag, "ModelName", "modelName");
         aiName = getString(tag, "AiName", "aiName");
         if (aiName.isBlank()) {
@@ -291,10 +309,62 @@ public class IntelligentTransmitterBlockEntity extends BlockEntity {
         sync();
     }
 
+    private String loadApiKey(CompoundTag tag) {
+        String stored = getString(tag, "ApiKey", "apiKey");
+        if (stored.isBlank()) {
+            return "";
+        }
+
+        if (!CRYPTO.isReady()) {
+            return stored;
+        }
+
+        if (tag.contains("ApiKeyHash") && tag.contains("ApiKeyEncrypted")) {
+            try {
+                String encrypted = tag.getString("ApiKeyEncrypted");
+                String hash = tag.getString("ApiKeyHash");
+                String decrypted = CRYPTO.decrypt(encrypted);
+                String actualHash = CRYPTO.hash(decrypted);
+                if (!actualHash.equals(hash)) {
+                    System.err.println("[LLMEra] API key hash mismatch, data may be corrupted");
+                    return "";
+                }
+                return decrypted;
+            } catch (GeneralSecurityException e) {
+                System.err.println("[LLMEra] Failed to decrypt API key: " + e.getMessage());
+                return "";
+            }
+        }
+
+        try {
+            String encrypted = CRYPTO.encrypt(stored);
+            String hash = CRYPTO.hash(stored);
+            tag.putString("ApiKeyEncrypted", encrypted);
+            tag.putString("ApiKeyHash", hash);
+            tag.remove("ApiKey");
+        } catch (GeneralSecurityException e) {
+            System.err.println("[LLMEra] Failed to encrypt legacy API key: " + e.getMessage());
+        }
+        return stored;
+    }
+
     private void writeData(CompoundTag tag, boolean includeSecrets) {
         tag.putString("ModelUrl", modelUrl);
         if (includeSecrets) {
-            tag.putString("ApiKey", apiKey);
+            if (CRYPTO.isReady() && !apiKey.isBlank()) {
+                try {
+                    String encrypted = CRYPTO.encrypt(apiKey);
+                    String hash = CRYPTO.hash(apiKey);
+                    tag.putString("ApiKeyEncrypted", encrypted);
+                    tag.putString("ApiKeyHash", hash);
+                    tag.remove("ApiKey");
+                } catch (GeneralSecurityException e) {
+                    System.err.println("[LLMEra] Failed to encrypt API key: " + e.getMessage());
+                    tag.putString("ApiKey", apiKey);
+                }
+            } else {
+                tag.putString("ApiKey", apiKey);
+            }
         }
         tag.putString("ModelName", modelName);
         tag.putString("AiName", aiName);
